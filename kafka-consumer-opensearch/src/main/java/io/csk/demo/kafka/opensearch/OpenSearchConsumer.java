@@ -3,6 +3,8 @@ package io.csk.demo.kafka.opensearch;
 import com.google.gson.JsonParser;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.RequestOptions;
@@ -50,6 +52,8 @@ public class OpenSearchConsumer {
 
                 LOG.info("Received {} records", records.count());
 
+                BulkRequest bulkRequest = new BulkRequest();
+
                 records.forEach(record -> {
                     // for idempotent consumer, we need to send uniqueId for every request.
 
@@ -58,14 +62,14 @@ public class OpenSearchConsumer {
                     IndexRequest indexRequest = new IndexRequest("wikimedia")
                             .source(record.value(), XContentType.JSON)
                             .id(id);
-                    try {
-                        IndexResponse indexResponse =
-                                openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
-                        LOG.info("Index ResponseId :: {}", indexResponse.getId());
-                    } catch (Exception e) {
-                        //e.printStackTrace();
-                    }
+
+                    bulkRequest.add(indexRequest);
                 });
+
+                if (bulkRequest.numberOfActions() > 0) {
+                    BulkResponse bulkResponse = openSearchClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+                    LOG.info("Inserted {} records.", bulkResponse.getItems().length);
+                }
             }
         }
     }
